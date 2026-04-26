@@ -1,0 +1,19 @@
+default_config:
+
+homeassistant:
+  name: "Quo Home"
+  time_zone: Asia/Tokyo
+  unit_system: metric
+  country: JP
+  currency: JPY
+
+http:
+  use_x_forwarded_for: false
+
+logger:
+  default: warning
+  logs:
+    homeassistant.components.tuya: info
+    homeassistant.components.nature_remo: info
+    homeassistant.components.roomba: info
+    homeassistant.components.cast: info

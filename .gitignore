@@ -1,0 +1,29 @@
+# 環境変数
+.env
+.env.local
+
+# HA本体が書き込む実行時状態（コンテナ起動後に生成される）
+config/.storage/
+config/.cloud/
+config/.HA_VERSION
+config/home-assistant.log*
+config/home-assistant_v2.db*
+config/deps/
+config/tts/
+config/www/
+config/blueprints/
+config/custom_components/__pycache__/
+
+# 機密情報
+config/secrets.yaml
+
+# Claude Code / 開発ツール
+.claude/
+.spotter/
+.vscode/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

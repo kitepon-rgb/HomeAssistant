@@ -1,0 +1,17 @@
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    # network_mode: host は Nature Remo (mDNS) / Tuya (UDP 6666-6667 ブロードキャスト) /
+    # SSDP / Google Cast 等のローカル探索に必須。bridge では検出されない。
+    network_mode: host
+    # privileged: true は将来の USB / Bluetooth パススルー（Wyoming Voice Satellite 等）用に確保。
+    # 現時点では必須ではないが、後で外す方が破壊的なので最初から付けておく。
+    privileged: true
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    environment:
+      - TZ=Asia/Tokyo
