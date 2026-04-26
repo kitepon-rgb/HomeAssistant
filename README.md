@@ -1,6 +1,6 @@
 # HomeAssistant
 
-ベル（[OpenClaw](../OpenClaw/)）の家電操作レイヤーとして、Home AssistantをLinuxサーバー（192.168.1.2）にDockerで立てる構成。
+ベル（[OpenClaw](../OpenClaw/)）の家電操作レイヤーとして、Home AssistantをLinuxサーバー（192.168.1.2）に rootless Podman で立てる構成。
 
 > ローカルディレクトリ名は `HomeAssitant`（"s" 抜けタイポ）、GitHubリポジトリ名は `HomeAssistant`（正）。
 
@@ -20,6 +20,21 @@
 | `config/.storage/`, `secrets.yaml` 等 | HAが書き込む状態（Git管理外） |
 | `deploy/deploy.sh` | Windows→Linuxサーバーへ rsync+起動 |
 | `.env` | デプロイ先情報（Git管理外、`.env.example` 参照） |
+
+## 現状（2026-04-26時点）
+
+| Phase | 内容 | 状態 |
+|---|---|---|
+| 1 | HA scaffold（compose / config / deploy script / docs） | ✅ 完了（rootless Podman 対応済み） |
+| 1 | Linux サーバーへのデプロイと初期セットアップ | ⏸️ 未着手（手動: `bash deploy/deploy.sh`） |
+| 1 | 統合追加（Nature Remo / Tuya / iRobot / Google Cast） | ⏸️ 未着手（手動: HA UI） |
+| 2 | OpenClaw 側 `home_control` MCP ツール実装 | ✅ 完了（OpenClaw commit `565e463`） |
+| 2 | OpenClaw `.env` への `HA_BASE_URL` / `HA_TOKEN` 追記 | ⏸️ 未着手（手動、Phase 1 完走後） |
+| 2 | wiki seed `home-devices.md` の `<TBD>` 埋め | ⏸️ 未着手（手動、Phase 1 完走後） |
+| 3 | TTS 出力（Style-Bert-VITS2、ベルが部屋スピーカーで応答） | 🔮 後回し |
+| 4 | サテライトマイク/スピーカー（寝室・風呂） | 🔮 後回し |
+
+詳細プラン: `~/.claude/plans/c-users-kite-documents-program-openclaw-recursive-petal.md`
 
 ## 初回セットアップ
 
@@ -72,6 +87,16 @@ bash deploy/deploy.sh
 
 `rsync` で構成を同期し、リモートで `${COMPOSE_CMD} pull && up -d` を実行する。
 `.storage/`・ログ・DB・`.env`・`secrets.yaml` は同期対象外（リモート側で永続化）。
+
+## サーバー将来リプレイス予定
+
+192.168.1.2 のサーバー（Bazzite）は将来リプレイス予定（時期未定、Quo告知 2026-04-26）。サーバー固有値は全部 `.env` で上書き可能なので、リプレイス時は:
+
+1. 新サーバーで OS / コンテナランタイムを確認: `ssh <user>@<ip> 'cat /etc/os-release; podman --version; docker --version'`
+2. `.env` の `HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD` を書き換え
+3. `bash deploy/deploy.sh` を再実行
+
+`docker-compose.yml` 本体に手を入れる必要があるのは USB/Bluetooth pass-through で rootful 運用に切り替える時くらい。
 
 ## 関連プロジェクト
 
