@@ -18,6 +18,9 @@ if [[ -z "${HA_SERVER:-}" || -z "${HA_REMOTE_DIR:-}" ]]; then
   exit 1
 fi
 
+# コンテナランタイム。Docker なら "docker compose"、Podman なら "sudo podman compose" 等を .env で上書き可。
+: "${COMPOSE_CMD:=docker compose}"
+
 echo "→ rsync to ${HA_SERVER}:${HA_REMOTE_DIR}"
 rsync -avz --delete \
   --exclude='.git/' \
@@ -34,7 +37,7 @@ rsync -avz --delete \
   --exclude='config/deps/' \
   ./ "${HA_SERVER}:${HA_REMOTE_DIR}/"
 
-echo "→ docker compose up -d on ${HA_SERVER}"
-ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && docker compose pull && docker compose up -d"
+echo "→ ${COMPOSE_CMD} up -d on ${HA_SERVER}"
+ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && ${COMPOSE_CMD} pull && ${COMPOSE_CMD} up -d"
 
 echo "✓ Deploy complete. http://192.168.1.2:8123 にアクセス"

@@ -54,13 +54,23 @@
 - HAは `network_mode: host` で動く（mDNS/Tuya UDPブロードキャスト探索のため）
 - HAアクセスは `http://192.168.1.2:8123`（**ローカルネットワーク内のみ**、Caddyリバースプロキシ配下には置かない・外部公開しない）
 
+## コンテナランタイム
+
+Docker / Podman どちらでも動く。`deploy.sh` は `${COMPOSE_CMD:-docker compose}` で切替可能。
+
+### Podman を使う場合
+- **rootful 推奨**（`.env` で `COMPOSE_CMD="sudo podman compose"`）
+- 理由: `network_mode: host` で Nature Remo / Tuya / Google Cast の mDNS/UPnP 探索パケットを受信するため。rootless だと取りこぼす
+- Podman 4.0 以降の組込み `podman compose` を推奨（別パッケージの `podman-compose` ではなく）
+- SELinux 環境では bind mount に `:Z` 付加が要る場合あり（rootful なら通常不要）
+
 ## デプロイ
 
 ```bash
 bash deploy/deploy.sh
 ```
 
-`rsync` で構成を同期し、リモートで `docker compose pull && up -d` を実行する。
+`rsync` で構成を同期し、リモートで `${COMPOSE_CMD} pull && up -d` を実行する。
 `.storage/`・ログ・DB・`.env`・`secrets.yaml` は同期対象外（リモート側で永続化）。
 
 ## 関連プロジェクト

@@ -32,6 +32,7 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 ## デプロイ先
 - Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）
 - リモートパス: `/srv/homeassistant/`
+- コンテナランタイム: Docker / Podman どちらも可（`.env` の `COMPOSE_CMD` で切替）。Podman は `network_mode: host` のため rootful 推奨（rootless だと mDNS/UPnP 探索パケットを取りこぼす）
 - HAアクセス: http://192.168.1.2:8123（ローカルネットワーク内のみ、Caddy配下に置かない・外部公開しない）
 
 ## 関連リポジトリ
