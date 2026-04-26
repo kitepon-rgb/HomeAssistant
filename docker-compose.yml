@@ -5,13 +5,16 @@ services:
     restart: unless-stopped
     # network_mode: host は Nature Remo (mDNS) / Tuya (UDP 6666-6667 ブロードキャスト) /
     # SSDP / Google Cast 等のローカル探索に必須。bridge では検出されない。
+    # rootless Podman でも host network mode は使える (rootless の network namespace から
+    # host network に直接アクセス)。8123 は非特権ポートなので問題なし。
     network_mode: host
-    # privileged: true は将来の USB / Bluetooth パススルー（Wyoming Voice Satellite 等）用に確保。
-    # 現時点では必須ではないが、後で外す方が破壊的なので最初から付けておく。
-    privileged: true
     volumes:
       - ./config:/config
       - /etc/localtime:/etc/localtime:ro
-      - /run/dbus:/run/dbus:ro
     environment:
       - TZ=Asia/Tokyo
+    # 注: サーバーは rootless Podman 運用 (Bazzite, uid=1000 kite)。
+    # privileged: true や /run/dbus の bind mount は rootless では効かない or 不要。
+    # 将来 USB/Bluetooth pass-through (Wyoming Voice Satellite 等) が必要になったら
+    # rootful 切替 + privileged + udev rule を別途検討する。
+    # SELinux は Permissive なので bind mount への :Z 付与は不要。

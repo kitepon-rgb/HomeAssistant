@@ -30,9 +30,12 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 - `.env` — デプロイ先サーバー情報（Git管理外、`.env.example`参照）
 
 ## デプロイ先
-- Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）
-- リモートパス: `/srv/homeassistant/`
-- コンテナランタイム: Docker / Podman どちらも可（`.env` の `COMPOSE_CMD` で切替）。Podman は `network_mode: host` のため rootful 推奨（rootless だと mDNS/UPnP 探索パケットを取りこぼす）
+- Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）。**Bazzite (immutable Fedora atomic)** で運用、SSH ユーザー名は `kite`
+- リモートパス: `/home/kite/homeassistant/`（既存コンテナも `~/<service>/docker-compose.yml` パターンで揃えてある）
+- コンテナランタイム: **rootless Podman 5.8.2**（既存コンテナと同じ流儀）。`podman compose` は内部で `docker-compose` plugin を呼ぶ Bazzite 流儀で動く
+- `network_mode: host` は rootless でも動く（mDNS/Tuya UDP/SSDP 受信OK、8123 は非特権ポート）
+- `privileged: true` / `/run/dbus` mount は rootless では効かないため compose から除外。USB/Bluetooth 必要時は rootful 切替を別途検討
+- SELinux は **Permissive** モードなので bind mount への `:Z` 付与は不要
 - HAアクセス: http://192.168.1.2:8123（ローカルネットワーク内のみ、Caddy配下に置かない・外部公開しない）
 
 ## 関連リポジトリ

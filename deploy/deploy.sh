@@ -18,8 +18,9 @@ if [[ -z "${HA_SERVER:-}" || -z "${HA_REMOTE_DIR:-}" ]]; then
   exit 1
 fi
 
-# コンテナランタイム。Docker なら "docker compose"、Podman なら "sudo podman compose" 等を .env で上書き可。
-: "${COMPOSE_CMD:=docker compose}"
+# コンテナランタイム。サーバーは rootless Podman 運用なので default は "podman compose"。
+# Docker に切替えるなら .env で COMPOSE_CMD="docker compose" を指定。
+: "${COMPOSE_CMD:=podman compose}"
 
 echo "→ rsync to ${HA_SERVER}:${HA_REMOTE_DIR}"
 rsync -avz --delete \

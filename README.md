@@ -23,18 +23,17 @@
 
 ## 初回セットアップ
 
-1. `.env.example` を `.env` にコピーして編集（`HA_SERVER`、`HA_REMOTE_DIR`）
-2. Linuxサーバー（192.168.1.2）にSSH鍵でpasswordless loginできるようにしておく
-3. リモート側に `/srv/homeassistant/` ディレクトリと書き込み権限を確保
-4. `bash deploy/deploy.sh` を実行
-5. ブラウザで http://192.168.1.2:8123 を開きHA初期セットアップ（Owner作成）
-6. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
+1. `.env.example` を `.env` にコピー（既定値で動くはず：`kite@192.168.1.2:/home/kite/homeassistant` + `podman compose`）
+2. Linuxサーバー（192.168.1.2）に SSH 鍵で passwordless login できることを確認 (`ssh kite@192.168.1.2 'echo ok'`)
+3. `bash deploy/deploy.sh` を実行（リモート側ディレクトリは rsync が自動作成）
+4. ブラウザで http://192.168.1.2:8123 を開き HA 初期セットアップ（Owner 作成）
+5. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
    - Nature Remo（公式トークン要、`home.nature.global` で発行）
-   - Tuya（SmartLifeアカウントOAuth）
+   - Tuya（SmartLife アカウント OAuth）
    - iRobot（BLID/パスワード要）
    - Google Cast（自動検出）
-7. ベル統合用にHA UIのProfile → Long-Lived Access Tokensを発行
-8. OpenClaw側 `.env` に `HA_BASE_URL=http://192.168.1.2:8123` と `HA_TOKEN=<トークン>` を貼る
+6. ベル統合用に HA UI の Profile → Long-Lived Access Tokens を発行
+7. OpenClaw 側 `.env` に `HA_BASE_URL=http://192.168.1.2:8123` と `HA_TOKEN=<トークン>` を貼る
 
 ## 連携対象デバイス（ネットワーク調査済み）
 
@@ -54,15 +53,16 @@
 - HAは `network_mode: host` で動く（mDNS/Tuya UDPブロードキャスト探索のため）
 - HAアクセスは `http://192.168.1.2:8123`（**ローカルネットワーク内のみ**、Caddyリバースプロキシ配下には置かない・外部公開しない）
 
-## コンテナランタイム
+## コンテナランタイム（サーバー実情）
 
-Docker / Podman どちらでも動く。`deploy.sh` は `${COMPOSE_CMD:-docker compose}` で切替可能。
+サーバー (192.168.1.2) は **Bazzite (immutable Fedora atomic) + rootless Podman 5.8.2**。既存の Caddy / Nextcloud / OpenClaw MCP / その他 10 個のコンテナが全部 rootless で稼働している。HA も同じ流儀で、ホームディレクトリ (`/home/kite/homeassistant/`) に置いて `podman compose` で起動する。
 
-### Podman を使う場合
-- **rootful 推奨**（`.env` で `COMPOSE_CMD="sudo podman compose"`）
-- 理由: `network_mode: host` で Nature Remo / Tuya / Google Cast の mDNS/UPnP 探索パケットを受信するため。rootless だと取りこぼす
-- Podman 4.0 以降の組込み `podman compose` を推奨（別パッケージの `podman-compose` ではなく）
-- SELinux 環境では bind mount に `:Z` 付加が要る場合あり（rootful なら通常不要）
+- `network_mode: host` は rootless でも動く（Nature Remo mDNS / Tuya UDP / SSDP 全部受信できる）。8123 は非特権ポートなので問題なし
+- `privileged: true` と `/run/dbus` mount は rootless では無効化。USB/Bluetooth が必要になったら rootful 切替を別途検討
+- SELinux は **Permissive** モードなので bind mount への `:Z` 付与は不要
+- `podman compose` は内部で `docker-compose` plugin (5.1.2) を呼び出す Bazzite の流儀で動く
+
+Docker に切替たい場合は `.env` で `COMPOSE_CMD="docker compose"` を指定する。
 
 ## デプロイ
 
