@@ -22,6 +22,13 @@ fi
 # Docker に切替えるなら .env で COMPOSE_CMD="docker compose" を指定。
 : "${COMPOSE_CMD:=podman compose}"
 
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "✗ rsync が見つかりません。差分転送と削除同期に必要なので別経路では代替しません。" >&2
+  echo "  導入例: WSL Ubuntu (wsl --install -d Ubuntu)、Scoop (scoop install rsync)、" >&2
+  echo "         MSYS2 (pacman -S rsync)、Cygwin 等" >&2
+  exit 1
+fi
+
 echo "→ rsync to ${HA_SERVER}:${HA_REMOTE_DIR}"
 rsync -avz --delete \
   --exclude='.git/' \
