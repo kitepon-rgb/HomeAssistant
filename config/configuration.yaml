@@ -7,9 +7,6 @@ homeassistant:
   country: JP
   currency: JPY
 
-http:
-  use_x_forwarded_for: false
-
 logger:
   default: warning
   logs:
