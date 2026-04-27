@@ -21,34 +21,70 @@
 | `deploy/deploy.sh` | Windows→Linuxサーバーへ rsync+起動 |
 | `.env` | デプロイ先情報（Git管理外、`.env.example` 参照） |
 
-## 現状（2026-04-26時点）
+## 現状（2026-04-27時点）
 
 | Phase | 内容 | 状態 |
 |---|---|---|
-| 1 | HA scaffold（compose / config / deploy script / docs） | ✅ 完了（rootless Podman 対応済み） |
-| 1 | Linux サーバーへのデプロイと初期セットアップ | ⏸️ 未着手（手動: `bash deploy/deploy.sh`） |
-| 1 | 統合追加（Nature Remo / Tuya / iRobot / Google Cast） | ⏸️ 未着手（手動: HA UI） |
-| 2 | OpenClaw 側 `home_control` MCP ツール実装 | ✅ 完了（OpenClaw commit `565e463`） |
-| 2 | OpenClaw `.env` への `HA_BASE_URL` / `HA_TOKEN` 追記 | ⏸️ 未着手（手動、Phase 1 完走後） |
-| 2 | wiki seed `home-devices.md` の `<TBD>` 埋め | ⏸️ 未着手（手動、Phase 1 完走後） |
+| 1 | HA scaffold（compose / config / deploy script / docs） | ✅ 完了 |
+| 1 | Linux サーバー (192.168.1.2) へのデプロイ + HA 初期セットアップ | ✅ 完了、稼働中 |
+| 1 | 統合追加（Nature Remo×2 / Tuya×3 / iRobot Roomba+Braava / HACS） | ✅ 完了 |
+| 2 | OpenClaw 側 `home_control` MCP ツール実装 | ✅ 完了（commit `565e463`、`68bf9ae` で zod 修正） |
+| 2 | OpenClaw `.env`（Windows + サーバー両方）への `HA_BASE_URL` / `HA_TOKEN` 追記 | ✅ 完了 |
+| 2 | wiki seed `home-devices.md` の entity_id マッピング | ✅ 完了（手書き seed、`locked: true`） |
+| 2 | ベルから `home_control` 経由で家電操作 E2E | ✅ 完了（ベル運用中） |
 | 3 | TTS 出力（Style-Bert-VITS2、ベルが部屋スピーカーで応答） | 🔮 後回し |
 | 4 | サテライトマイク/スピーカー（寝室・風呂） | 🔮 後回し |
 
+**ベルが操作可能なエンティティ（実機確認 2026-04-27）:**
+- 照明 2: 寝室（Nature Remo nano）/ リビング シーリングファン
+- エアコン 2: 寝室 / リビング（ダイキン）
+- スマートプラグ 3: テレビ電源 / 90cm水槽の照明 / 90cm水槽の水流ポンプ
+- ロボット 2: Roomba（掃除機）/ Braava jet（床拭き）
+- 温度・湿度・照度・人感センサー等多数（Nature Remo 系が自動生成）
+
+**保留中:**
+- Google Cast（自動検出が動かず一旦保留、必要時に手動IP指定で追加）
+- 192.168.1.42 → Nature Remo nano だったと判明
+- 「水槽ヒーター」想定 → 実態は「水槽の水流」と判明
+
 詳細プラン: `~/.claude/plans/c-users-kite-documents-program-openclaw-recursive-petal.md`
+
+## 運用モデル
+
+既存 `OpenCClaw` と同じ **GitHub経由 → サーバーで git pull** 方式。
+- Windows 側で編集 → `git push`
+- サーバー側で `git pull && podman compose up -d`（`deploy/deploy.sh` が ssh 越しに自動化）
 
 ## 初回セットアップ
 
-1. `.env.example` を `.env` にコピー（既定値で動くはず：`kite@192.168.1.2:/home/kite/homeassistant` + `podman compose`）
-2. Linuxサーバー（192.168.1.2）に SSH 鍵で passwordless login できることを確認 (`ssh kite@192.168.1.2 'echo ok'`)
-3. `bash deploy/deploy.sh` を実行（リモート側ディレクトリは rsync が自動作成）
-4. ブラウザで http://192.168.1.2:8123 を開き HA 初期セットアップ（Owner 作成）
-5. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
+1. **GitHubリポジトリ作成 & push**（Windows側）:
+   ```bash
+   gh repo create kitepon-rgb/HomeAssistant --public --source=. --remote=origin --push
+   ```
+2. **サーバーで初回 clone**:
+   ```bash
+   ssh kite@192.168.1.2
+   cd ~ && git clone https://github.com/kitepon-rgb/HomeAssistant.git homeassistant
+   exit
+   ```
+3. **`.env.example` を `.env` にコピー**（Windows側、deploy.sh 用）— 既定値で動く
+4. **`bash deploy/deploy.sh`**（Windows側）— サーバーで `git pull && podman compose pull && up -d` が走る
+5. ブラウザで http://192.168.1.2:8123 を開き HA 初期セットアップ（Owner 作成）
+6. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
    - Nature Remo（公式トークン要、`home.nature.global` で発行）
    - Tuya（SmartLife アカウント OAuth）
    - iRobot（BLID/パスワード要）
    - Google Cast（自動検出）
-6. ベル統合用に HA UI の Profile → Long-Lived Access Tokens を発行
-7. OpenClaw 側 `.env` に `HA_BASE_URL=http://192.168.1.2:8123` と `HA_TOKEN=<トークン>` を貼る
+7. ベル統合用に HA UI の Profile → Long-Lived Access Tokens を発行
+8. OpenClaw 側 `.env` に `HA_BASE_URL=http://192.168.1.2:8123` と `HA_TOKEN=<トークン>` を貼る
+
+## 更新フロー（2回目以降）
+
+```bash
+# Windows 側で編集
+git add ... && git commit -m "..." && git push
+bash deploy/deploy.sh   # サーバーで git pull → compose up -d
+```
 
 ## 連携対象デバイス（ネットワーク調査済み）
 

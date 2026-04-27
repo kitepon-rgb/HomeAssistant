@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Windows (WSL2 or Git Bash) からLinuxサーバーへ Home Assistant の構成をデプロイする。
-# 前提: SSH 鍵で HA_SERVER に passwordless login できること、リモート側に Docker / docker compose が入っていること。
+# Linuxサーバーで git pull + ${COMPOSE_CMD} up -d を実行する。
+#
+# 運用モデル: 既存の OpenCClaw と同じ「GitHub clone → サーバー上で git pull」方式。
+#   - 初回: 手動で `ssh ${HA_SERVER}` した上で `git clone <repo> ${HA_REMOTE_DIR}` する
+#   - 以降: Windows 側で git push → このスクリプトが ssh 越しに git pull + compose up を叩く
+#
+# 前提:
+#   - SSH 鍵で HA_SERVER に passwordless login できる
+#   - サーバー側 ${HA_REMOTE_DIR} に当リポジトリが clone 済み
+#   - サーバー側に podman / podman compose (or docker) が入っている
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -22,30 +30,10 @@ fi
 # Docker に切替えるなら .env で COMPOSE_CMD="docker compose" を指定。
 : "${COMPOSE_CMD:=podman compose}"
 
-if ! command -v rsync >/dev/null 2>&1; then
-  echo "✗ rsync が見つかりません。差分転送と削除同期に必要なので別経路では代替しません。" >&2
-  echo "  導入例: WSL Ubuntu (wsl --install -d Ubuntu)、Scoop (scoop install rsync)、" >&2
-  echo "         MSYS2 (pacman -S rsync)、Cygwin 等" >&2
-  exit 1
-fi
+echo "→ git pull on ${HA_SERVER}:${HA_REMOTE_DIR}"
+ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && git pull --ff-only"
 
-echo "→ rsync to ${HA_SERVER}:${HA_REMOTE_DIR}"
-rsync -avz --delete \
-  --exclude='.git/' \
-  --exclude='.env' \
-  --exclude='.env.local' \
-  --exclude='.claude/' \
-  --exclude='.spotter/' \
-  --exclude='.vscode/' \
-  --exclude='config/.storage/' \
-  --exclude='config/.cloud/' \
-  --exclude='config/secrets.yaml' \
-  --exclude='config/home-assistant.log*' \
-  --exclude='config/home-assistant_v2.db*' \
-  --exclude='config/deps/' \
-  ./ "${HA_SERVER}:${HA_REMOTE_DIR}/"
-
-echo "→ ${COMPOSE_CMD} up -d on ${HA_SERVER}"
+echo "→ ${COMPOSE_CMD} pull && up -d on ${HA_SERVER}"
 ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && ${COMPOSE_CMD} pull && ${COMPOSE_CMD} up -d"
 
 echo "✓ Deploy complete. http://192.168.1.2:8123 にアクセス"

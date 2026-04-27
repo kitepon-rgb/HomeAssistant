@@ -21,6 +21,7 @@ config/secrets.yaml
 .claude/
 .spotter/
 .vscode/
+excalidraw.log
 
 # OS / エディタ
 .DS_Store

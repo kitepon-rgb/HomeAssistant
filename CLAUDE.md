@@ -26,7 +26,7 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 - `config/` — HAの `/config` にbind mountされる
   - `configuration.yaml` — seed設定（Git管理）
   - `.storage/`、`secrets.yaml`、ログ等はGit管理外（`.gitignore`参照）
-- `deploy/deploy.sh` — Windows側からLinuxサーバーへ rsync + `${COMPOSE_CMD}` (default: `podman compose`) で起動
+- `deploy/deploy.sh` — ssh 越しに サーバー側 `git pull && ${COMPOSE_CMD} pull && up -d` を叩く（既存 OpenCClaw と同じ「GitHub経由 → サーバーで pull」方式）
 - `.env` — デプロイ先サーバー情報（Git管理外、`.env.example`参照）
 
 ## デプロイ先
@@ -38,17 +38,30 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 - SELinux は **Permissive** モードなので bind mount への `:Z` 付与は不要
 - HAアクセス: http://192.168.1.2:8123（ローカルネットワーク内のみ、Caddy配下に置かない・外部公開しない）
 
-## 実装ステータス（2026-04-26時点）
+## 実装ステータス（2026-04-27時点 — Phase 1+2 完走）
 
-- ✅ HA scaffold (`docker-compose.yml` / `config/configuration.yaml` / `deploy/deploy.sh` / `.env.example` / `README.md` / 当ファイル)
-- ✅ rootless Podman + Bazzite + ホーム配下運用に scaffold を最適化（実機 SSH 確認済み）
-- ✅ OpenClaw 側 `home_control` MCP ツール実装・コミット済み（OpenClaw commit `565e463`）
-- ✅ ベル persona に「自宅環境」セクション追記、wiki seed テンプレ `memory/wiki/concepts/home-devices.md` 作成
-- ⏸️ Linuxサーバーへのデプロイ・HA 初期セットアップ・統合追加（Quo 手動）
-- ⏸️ Long-Lived Token 発行 → OpenClaw `.env` 追記（Quo 手動）
-- ⏸️ wiki seed `<TBD>` 埋め → `node scripts/wiki-approve.js home-devices`（Quo 手動）
-- ⏸️ ベル再起動して `home_control` 認識確認（Phase 2 E2E）
-- 🔮 Phase 3（TTS 出力 Style-Bert-VITS2） / Phase 4（サテライト）は後回し、Phase 1+2 安定後に判断
+- ✅ HA scaffold（`docker-compose.yml` / `config/configuration.yaml` / `deploy/deploy.sh` / `.env.example` / `README.md` / 当ファイル）
+- ✅ rootless Podman + Bazzite + ホーム配下運用、サーバー 192.168.1.2 で稼働中
+- ✅ HA UI 初期セットアップ完了、Owner=`kitepon`、Caddy 配下に置かない・ローカル LAN 限定
+- ✅ HACS 取り込み（GitHub Releases 公式 zip）、Nature Remo を NaNaLinks フォークで追加
+- ✅ Nature Remo 統合（Remo×2: リビング Remo + 寝室 Remo nano、合計 12 エンティティ）
+- ✅ Tuya 統合（SmartLife OAuth、`switch.terehi_socket` / `switch.90cm水槽の照明_socket` / `switch.90cm水槽の水流_socket`）
+- ✅ iRobot 統合（Roomba 掃除機 + Braava jet 床拭き、自動 BLID/PW 取得方式）
+- ✅ ベル `home_control` MCP ツール実装・コミット済み（OpenClaw commit `565e463`、zod 互換修正 `68bf9ae`）
+- ✅ ベル persona に「自宅環境」セクション追記、wiki seed `memory/wiki/concepts/home-devices.md` を実 entity_id で作成（手書き保持、`locked: true`）
+- ✅ Long-Lived Token 発行 → Windows + サーバー両方の `.env` に `HA_BASE_URL` / `HA_TOKEN` 追記
+- ✅ ファイアウォール 8123 ポートを LAN 内（192.168.1.0/24）に開放
+- ✅ ベルから `home_control` 経由で実機家電取得 E2E 確認（照明・エアコン・スマートプラグ・ロボット）
+- 🟡 Google Cast 統合は自動検出が動かず保留、必要時に手動 IP 指定で追加
+- 🔮 Phase 3（TTS 出力 Style-Bert-VITS2） / Phase 4（サテライト）は後回し、運用しながら判断
+
+## 運用上の罠（memory に詳細記録）
+
+- **OpenClaw の `.env` は Windows ローカルとサーバーで別物**、新 env は両方に追記が必要（`memory/openclaw_dual_env_files.md`）
+- **新 MCP ツール追加時は `openclaw-mcp` コンテナとベルの両方を再起動**（`memory/openclaw_new_tool_requires_restarts.md`）
+- **MCP ツールの zod schema で `z.record(z.any())` は使用禁止**（tools/list 全体がクラッシュする、`memory/openclaw_mcp_zod_record_pitfall.md`）
+- **OpenClaw の `wiki-approve.js` は手書き seed 本文を消す**、`locked: true` で叩かない運用（`memory/openclaw_wiki_approve_behavior.md`）
+- **HA `http:` の `use_x_forwarded_for` 単独指定不可**、`trusted_proxies` 必須（recovery mode に陥る）
 
 詳細プラン: `~/.claude/plans/c-users-kite-documents-program-openclaw-recursive-petal.md`
 
