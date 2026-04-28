@@ -1,6 +1,6 @@
 # HomeAssistant
 
-ベル（[OpenClaw](../OpenClaw/)）の家電操作レイヤーとして、Home AssistantをLinuxサーバー（192.168.1.2）に rootless Podman で立てる構成。
+ベル（[OpenClaw](../OpenClaw/)）の家電操作レイヤーとして、Home AssistantをLinuxサーバー（192.168.1.2）に Docker rootful で立てる構成。
 
 > ローカルディレクトリ名は `HomeAssitant`（"s" 抜けタイポ）、GitHubリポジトリ名は `HomeAssistant`（正）。
 
@@ -18,7 +18,7 @@
 | `docker-compose.yml` | HA本体のコンテナ定義 |
 | `config/configuration.yaml` | HAのseed設定（最小限） |
 | `config/.storage/`, `secrets.yaml` 等 | HAが書き込む状態（Git管理外） |
-| `deploy/deploy.sh` | Windows→Linuxサーバーへ rsync+起動 |
+| `deploy/deploy.sh` | Windows→Linuxサーバーへ git pull+起動 |
 | `.env` | デプロイ先情報（Git管理外、`.env.example` 参照） |
 
 ## 現状（2026-04-27時点）
@@ -53,7 +53,7 @@
 
 既存 `OpenCClaw` と同じ **GitHub経由 → サーバーで git pull** 方式。
 - Windows 側で編集 → `git push`
-- サーバー側で `git pull && podman compose up -d`（`deploy/deploy.sh` が ssh 越しに自動化）
+- サーバー側で `git pull && docker compose up -d`（`deploy/deploy.sh` が ssh 越しに自動化）
 
 ## 初回セットアップ
 
@@ -68,7 +68,7 @@
    exit
    ```
 3. **`.env.example` を `.env` にコピー**（Windows側、deploy.sh 用）— 既定値で動く
-4. **`bash deploy/deploy.sh`**（Windows側）— サーバーで `git pull && podman compose pull && up -d` が走る
+4. **`bash deploy/deploy.sh`**（Windows側）— サーバーで `git pull && docker compose pull && up -d` が走る
 5. ブラウザで http://192.168.1.2:8123 を開き HA 初期セットアップ（Owner 作成）
 6. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
    - Nature Remo（公式トークン要、`home.nature.global` で発行）
@@ -106,14 +106,12 @@ bash deploy/deploy.sh   # サーバーで git pull → compose up -d
 
 ## コンテナランタイム（サーバー実情）
 
-サーバー (192.168.1.2) は **Bazzite (immutable Fedora atomic) + rootless Podman 5.8.2**。既存の Caddy / Nextcloud / OpenClaw MCP / その他 10 個のコンテナが全部 rootless で稼働している。HA も同じ流儀で、ホームディレクトリ (`/home/kite/homeassistant/`) に置いて `podman compose` で起動する。
+サーバー (192.168.1.2) は **Ubuntu Server LTS + Docker Engine rootful**（apt 公式 docker-ce）。既存の Caddy / Nextcloud / OpenClaw MCP / その他コンテナが稼働している。HA もホームディレクトリ (`/home/kite/homeassistant/`) に置いて `docker compose` で起動する。
 
-- `network_mode: host` は rootless でも動く（Nature Remo mDNS / Tuya UDP / SSDP 全部受信できる）。8123 は非特権ポートなので問題なし
-- `privileged: true` と `/run/dbus` mount は rootless では無効化。USB/Bluetooth が必要になったら rootful 切替を別途検討
-- SELinux は **Permissive** モードなので bind mount への `:Z` 付与は不要
-- `podman compose` は内部で `docker-compose` plugin (5.1.2) を呼び出す Bazzite の流儀で動く
-
-Docker に切替たい場合は `.env` で `COMPOSE_CMD="docker compose"` を指定する。
+- `network_mode: host` は Docker rootful でも動く（Nature Remo mDNS / Tuya UDP / SSDP 全部受信できる）
+- `privileged: true` と `/run/dbus` mount は利用可能だが、現状の HA 用途では不要。USB/Bluetooth が必要になったら有効化を検討
+- Ubuntu は **AppArmor** 環境のため bind mount への `:Z` 付与は不要（SELinux 固有機能）
+- `restart: unless-stopped` は Docker daemon 起動時に自動再起動する（OS 再起動時も docker.service 経由で自動起動）
 
 ## デプロイ
 
@@ -121,18 +119,14 @@ Docker に切替たい場合は `.env` で `COMPOSE_CMD="docker compose"` を指
 bash deploy/deploy.sh
 ```
 
-`rsync` で構成を同期し、リモートで `${COMPOSE_CMD} pull && up -d` を実行する。
+`git pull` で構成を同期し、リモートで `${COMPOSE_CMD} pull && up -d` を実行する。
 `.storage/`・ログ・DB・`.env`・`secrets.yaml` は同期対象外（リモート側で永続化）。
 
-## サーバー将来リプレイス予定
+## サーバーリプレイス（2026-04-28 移行完了）
 
-192.168.1.2 のサーバー（Bazzite）は将来リプレイス予定（時期未定、Quo告知 2026-04-26）。サーバー固有値は全部 `.env` で上書き可能なので、リプレイス時は:
+192.168.1.2 は Bazzite + rootless Podman → **Ubuntu Server LTS + Docker Engine rootful** へ移行完了（2026-04-28）。サーバー固有値は `.env` で上書き可能（`HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD`）。
 
-1. 新サーバーで OS / コンテナランタイムを確認: `ssh <user>@<ip> 'cat /etc/os-release; podman --version; docker --version'`
-2. `.env` の `HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD` を書き換え
-3. `bash deploy/deploy.sh` を再実行
-
-`docker-compose.yml` 本体に手を入れる必要があるのは USB/Bluetooth pass-through で rootful 運用に切り替える時くらい。
+`docker-compose.yml` 本体に手を入れる必要があるのは USB/Bluetooth pass-through で privileged を有効化する時くらい。
 
 ## 関連プロジェクト
 

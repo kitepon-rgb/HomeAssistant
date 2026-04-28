@@ -8,7 +8,7 @@
 - GitHubリポジトリ名: `HomeAssistant`（正しい綴り）
 
 ## アーキテクチャ
-- デバイス統合層: 当プロジェクト（Linuxサーバー上の Container、現状 rootless Podman）
+- デバイス統合層: 当プロジェクト（Linuxサーバー上の Container、Docker rootful）
 - 判断・対話層: [OpenClaw](../OpenClaw/) のベル
 - 接続: `OpenClaw/tools/home-assistant.js`（MCPツール `home_control`） → HA REST API
 
@@ -30,18 +30,19 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 - `.env` — デプロイ先サーバー情報（Git管理外、`.env.example`参照）
 
 ## デプロイ先
-- Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）。**Bazzite (immutable Fedora atomic)** で運用、SSH ユーザー名は `kite`
+- Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）。**Ubuntu Server LTS** で運用、SSH ユーザー名は `kite`
 - リモートパス: `/home/kite/homeassistant/`（既存コンテナも `~/<service>/docker-compose.yml` パターンで揃えてある）
-- コンテナランタイム: **rootless Podman 5.8.2**（既存コンテナと同じ流儀）。`podman compose` は内部で `docker-compose` plugin を呼ぶ Bazzite 流儀で動く
-- `network_mode: host` は rootless でも動く（mDNS/Tuya UDP/SSDP 受信OK、8123 は非特権ポート）
-- `privileged: true` / `/run/dbus` mount は rootless では効かないため compose から除外。USB/Bluetooth 必要時は rootful 切替を別途検討
-- SELinux は **Permissive** モードなので bind mount への `:Z` 付与は不要
+- コンテナランタイム: **Docker Engine rootful**（apt 公式 docker-ce）。`docker compose` プラグインを使用
+- `network_mode: host` は Docker rootful でも動く（mDNS/Tuya UDP/SSDP 受信OK）
+- `privileged: true` / `/run/dbus` mount は Docker rootful では利用可能だが、現状の HA 用途では不要なため compose から除外。USB/Bluetooth 必要時に有効化を検討
+- Ubuntu は **AppArmor** 環境（`:Z` は SELinux 固有のため非サポート、付与不要）
+- `restart: unless-stopped` は Docker daemon 起動時に自動再起動する（systemd で docker.service が有効であれば OS 再起動時にも自動起動）。Podman rootless で必要だった systemd unit 生成や linger 設定は不要
 - HAアクセス: http://192.168.1.2:8123（ローカルネットワーク内のみ、Caddy配下に置かない・外部公開しない）
 
 ## 実装ステータス（2026-04-27時点 — Phase 1+2 完走）
 
 - ✅ HA scaffold（`docker-compose.yml` / `config/configuration.yaml` / `deploy/deploy.sh` / `.env.example` / `README.md` / 当ファイル）
-- ✅ rootless Podman + Bazzite + ホーム配下運用、サーバー 192.168.1.2 で稼働中
+- ✅ Docker rootful + Ubuntu Server + ホーム配下運用、サーバー 192.168.1.2 で稼働中
 - ✅ HA UI 初期セットアップ完了、Owner=`kitepon`、Caddy 配下に置かない・ローカル LAN 限定
 - ✅ HACS 取り込み（GitHub Releases 公式 zip）、Nature Remo を NaNaLinks フォークで追加
 - ✅ Nature Remo 統合（Remo×2: リビング Remo + 寝室 Remo nano、合計 12 エンティティ）
@@ -65,8 +66,8 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 
 詳細プラン: `~/.claude/plans/c-users-kite-documents-program-openclaw-recursive-petal.md`
 
-## サーバー将来リプレイス
-192.168.1.2 は将来リプレイス予定（時期未定、Quo告知 2026-04-26）。サーバー固有値は全部 `.env` で上書き可能（`HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD`）なので、リプレイス時は新サーバー実情を SSH で確認 → `.env` 書換 → `bash deploy/deploy.sh` 再実行で済む。詳細は memory `linux_server_environment.md`。
+## サーバーリプレイス（2026-04-28 移行完了）
+192.168.1.2 は Bazzite + rootless Podman → **Ubuntu Server LTS + Docker Engine rootful** へ移行完了（2026-04-28）。サーバー固有値は全部 `.env` で上書き可能（`HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD`）。詳細は memory `linux_server_environment.md`。
 
 ## 関連リポジトリ
 - [OpenClaw](../OpenClaw/) — ベル本体。家電操作の道具 `home_control` をMCPツールとして当HAに対して呼ぶ

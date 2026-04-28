@@ -8,7 +8,7 @@
 # 前提:
 #   - SSH 鍵で HA_SERVER に passwordless login できる
 #   - サーバー側 ${HA_REMOTE_DIR} に当リポジトリが clone 済み
-#   - サーバー側に podman / podman compose (or docker) が入っている
+#   - サーバー側に docker / docker compose が入っている
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -26,9 +26,8 @@ if [[ -z "${HA_SERVER:-}" || -z "${HA_REMOTE_DIR:-}" ]]; then
   exit 1
 fi
 
-# コンテナランタイム。サーバーは rootless Podman 運用なので default は "podman compose"。
-# Docker に切替えるなら .env で COMPOSE_CMD="docker compose" を指定。
-: "${COMPOSE_CMD:=podman compose}"
+# コンテナランタイム。サーバーは Docker rootful 運用なので default は "docker compose"。
+: "${COMPOSE_CMD:=docker compose}"
 
 echo "→ git pull on ${HA_SERVER}:${HA_REMOTE_DIR}"
 ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && git pull --ff-only"
