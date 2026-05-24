@@ -30,7 +30,7 @@ OpenClaw側のCLAUDE.mdと方針を揃える。
 - `.env` — デプロイ先サーバー情報（Git管理外、`.env.example`参照）
 
 ## デプロイ先
-- Linuxサーバー: 192.168.1.2（kitepon.dynv6.net）。**Ubuntu Server LTS** で運用、SSH ユーザー名は `kite`
+- Linuxサーバー: 192.168.1.2（kitepon.dev）。**Ubuntu Server LTS** で運用、SSH ユーザー名は `kite`
 - リモートパス: `/home/kite/homeassistant/`（既存コンテナも `~/<service>/docker-compose.yml` パターンで揃えてある）
 - コンテナランタイム: **Docker Engine rootful**（apt 公式 docker-ce）。`docker compose` プラグインを使用
 - `network_mode: host` は Docker rootful でも動く（mDNS/Tuya UDP/SSDP 受信OK）
