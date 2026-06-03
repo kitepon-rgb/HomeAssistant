@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/og.png" alt="HomeAssistant — Home Assistant deploy for OpenClaw (ベル)" width="100%">
+</p>
+
 # HomeAssistant
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
