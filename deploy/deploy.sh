@@ -35,4 +35,4 @@ ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && git pull --ff-only"
 echo "→ ${COMPOSE_CMD} pull && up -d on ${HA_SERVER}"
 ssh "$HA_SERVER" "cd '${HA_REMOTE_DIR}' && ${COMPOSE_CMD} pull && ${COMPOSE_CMD} up -d"
 
-echo "✓ Deploy complete. http://192.168.1.2:8123 にアクセス"
+echo "✓ Deploy complete. http://${HA_SERVER#*@}:8123 にアクセス"

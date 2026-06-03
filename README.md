@@ -1,133 +1,131 @@
 # HomeAssistant
 
-ベル（[OpenClaw](../OpenClaw/)）の家電操作レイヤーとして、Home AssistantをLinuxサーバー（192.168.1.2）に Docker rootful で立てる構成。
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Docker-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-self--hosted-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 
-> ローカルディレクトリ名は `HomeAssitant`（"s" 抜けタイポ）、GitHubリポジトリ名は `HomeAssistant`（正）。
+**English** · [日本語](README.ja.md)
 
-## 役割分担
+> **A Docker Compose scaffold that turns a Linux box into one smart-home API an AI assistant can call.**
+> HomeAssistant runs [Home Assistant](https://www.home-assistant.io/) on a home server, unifies lights, air conditioners, smart plugs and robot vacuums behind a single local API, and exposes that API to an AI assistant ("Bell", part of the OpenClaw project) through a single MCP tool.
 
-- **当プロジェクト**: Home Assistant本体（家電統合HUB）。Nature Remo・SmartLife（Tuya）・iRobot・Google Cast等を1つのAPIに束ねる
-- **[OpenClaw](../OpenClaw/)**: ベル本体。状況判断と自然言語対話。当HAをMCPツール `home_control` 経由で叩く
+## What it does
 
-判断ロジックはHA側の自動化機能には載せず、すべてベル側で行う。
+This repo is the **device-integration layer** of a home-automation setup. Home Assistant
+bundles every device vendor (Nature Remo, SmartLife/Tuya, iRobot, Google Cast, …) into one
+REST API. A separate AI assistant calls that API to actually operate the home.
 
-## ディレクトリ構成
+The split is deliberate:
 
-| パス | 役割 |
+- **This project** is the *hands*: Home Assistant only exposes "call this and a device moves".
+- **The AI assistant** is the *brain*: all decision-making and natural-language dialogue live there. No
+  automation logic or conditional branching is placed inside Home Assistant.
+
+It is a **reference template**, not a general-purpose library — the interesting part is the
+AI-assistant → MCP tool → Home Assistant → physical-device flow and a clean push-to-deploy model.
+
+```mermaid
+flowchart LR
+    U["You / chat"] --> BELL["AI assistant<br/>(decisions + dialogue)"]
+    BELL -->|"home_control<br/>MCP tool"| HA["Home Assistant<br/>(REST API, this repo)<br/>network_mode: host"]
+
+    subgraph LAN["Home LAN only"]
+        HA --> NR["Nature Remo<br/>(lights · AC · IR)"]
+        HA --> TUYA["SmartLife / Tuya<br/>(smart plugs)"]
+        HA --> ROOMBA["iRobot<br/>(Roomba · Braava)"]
+        HA --> CAST["Google Cast<br/>(optional)"]
+    end
+
+    classDef brain fill:#7c5cff,stroke:#1a1f2e,color:#fff
+    classDef hub fill:#41BDF5,stroke:#1a1f2e,color:#fff
+    class BELL brain
+    class HA hub
+```
+
+## Quick start
+
+You need a Linux server reachable over SSH, with Docker Engine and the `docker compose`
+plugin installed.
+
+```bash
+# On the server: clone this repo into a working directory
+ssh youruser@YOUR_SERVER_IP
+git clone https://github.com/kitepon-rgb/HomeAssistant.git ~/homeassistant
+exit
+
+# On your workstation: configure the deploy target and push
+cp .env.example .env          # edit HA_SERVER / HA_REMOTE_DIR for your host
+bash deploy/deploy.sh         # ssh in, git pull, docker compose pull && up -d
+```
+
+Then open `http://YOUR_SERVER_IP:8123` and complete the Home Assistant onboarding
+(create the owner account). Home Assistant listens on port `8123`.
+
+> Home Assistant runs with `network_mode: host` so local-discovery protocols
+> (Nature Remo mDNS, Tuya UDP broadcast, SSDP, Google Cast) reach the container. Keep it on
+> the home LAN only — do not put it behind a public reverse proxy or expose it externally.
+
+## Add integrations
+
+After onboarding, add device integrations from the Home Assistant UI
+(**Settings → Devices & Services → Add Integration**):
+
+| Integration | What it needs |
 |---|---|
-| `docker-compose.yml` | HA本体のコンテナ定義 |
-| `config/configuration.yaml` | HAのseed設定（最小限） |
-| `config/.storage/`, `secrets.yaml` 等 | HAが書き込む状態（Git管理外） |
-| `deploy/deploy.sh` | Windows→Linuxサーバーへ git pull+起動 |
-| `.env` | デプロイ先情報（Git管理外、`.env.example` 参照） |
+| Nature Remo | An official token issued at `home.nature.global` |
+| Tuya | Your SmartLife account via OAuth |
+| iRobot | The vacuum's BLID / password |
+| Google Cast | Auto-discovery (manual IP fallback if discovery fails) |
 
-## 現状（2026-04-27時点）
+## Wire up the AI assistant
 
-| Phase | 内容 | 状態 |
-|---|---|---|
-| 1 | HA scaffold（compose / config / deploy script / docs） | ✅ 完了 |
-| 1 | Linux サーバー (192.168.1.2) へのデプロイ + HA 初期セットアップ | ✅ 完了、稼働中 |
-| 1 | 統合追加（Nature Remo×2 / Tuya×3 / iRobot Roomba+Braava / HACS） | ✅ 完了 |
-| 2 | OpenClaw 側 `home_control` MCP ツール実装 | ✅ 完了（commit `565e463`、`68bf9ae` で zod 修正） |
-| 2 | OpenClaw `.env`（Windows + サーバー両方）への `HA_BASE_URL` / `HA_TOKEN` 追記 | ✅ 完了 |
-| 2 | wiki seed `home-devices.md` の entity_id マッピング | ✅ 完了（手書き seed、`locked: true`） |
-| 2 | ベルから `home_control` 経由で家電操作 E2E | ✅ 完了（ベル運用中） |
-| 3 | TTS 出力（Style-Bert-VITS2、ベルが部屋スピーカーで応答） | 🔮 後回し |
-| 4 | サテライトマイク/スピーカー（寝室・風呂） | 🔮 後回し |
+1. In the Home Assistant UI, go to **Profile → Long-Lived Access Tokens** and issue a token.
+2. Point the AI assistant at this server by setting `HA_BASE_URL=http://YOUR_SERVER_IP:8123`
+   and `HA_TOKEN=<your token>` in its environment.
+3. The assistant's `home_control` MCP tool now drives Home Assistant's REST API.
 
-**ベルが操作可能なエンティティ（実機確認 2026-04-27）:**
-- 照明 2: 寝室（Nature Remo nano）/ リビング シーリングファン
-- エアコン 2: 寝室 / リビング（ダイキン）
-- スマートプラグ 3: テレビ電源 / 90cm水槽の照明 / 90cm水槽の水流ポンプ
-- ロボット 2: Roomba（掃除機）/ Braava jet（床拭き）
-- 温度・湿度・照度・人感センサー等多数（Nature Remo 系が自動生成）
+## Deploy model
 
-**保留中:**
-- Google Cast（自動検出が動かず一旦保留、必要時に手動IP指定で追加）
-- 192.168.1.42 → Nature Remo nano だったと判明
-- 「水槽ヒーター」想定 → 実態は「水槽の水流」と判明
-
-詳細プラン: `~/.claude/plans/c-users-kite-documents-program-openclaw-recursive-petal.md`
-
-## 運用モデル
-
-既存 `OpenCClaw` と同じ **GitHub経由 → サーバーで git pull** 方式。
-- Windows 側で編集 → `git push`
-- サーバー側で `git pull && docker compose up -d`（`deploy/deploy.sh` が ssh 越しに自動化）
-
-## 初回セットアップ
-
-1. **GitHubリポジトリ作成 & push**（Windows側）:
-   ```bash
-   gh repo create kitepon-rgb/HomeAssistant --public --source=. --remote=origin --push
-   ```
-2. **サーバーで初回 clone**:
-   ```bash
-   ssh kite@192.168.1.2
-   cd ~ && git clone https://github.com/kitepon-rgb/HomeAssistant.git homeassistant
-   exit
-   ```
-3. **`.env.example` を `.env` にコピー**（Windows側、deploy.sh 用）— 既定値で動く
-4. **`bash deploy/deploy.sh`**（Windows側）— サーバーで `git pull && docker compose pull && up -d` が走る
-5. ブラウザで http://192.168.1.2:8123 を開き HA 初期セットアップ（Owner 作成）
-6. 統合追加（HA UI → Settings → Devices & Services → Add Integration）:
-   - Nature Remo（公式トークン要、`home.nature.global` で発行）
-   - Tuya（SmartLife アカウント OAuth）
-   - iRobot（BLID/パスワード要）
-   - Google Cast（自動検出）
-7. ベル統合用に HA UI の Profile → Long-Lived Access Tokens を発行
-8. OpenClaw 側 `.env` に `HA_BASE_URL=http://192.168.1.2:8123` と `HA_TOKEN=<トークン>` を貼る
-
-## 更新フロー（2回目以降）
+Edits flow through GitHub, the server pulls — the same pattern used across the rest of the
+home stack:
 
 ```bash
-# Windows 側で編集
+# On your workstation
 git add ... && git commit -m "..." && git push
-bash deploy/deploy.sh   # サーバーで git pull → compose up -d
+bash deploy/deploy.sh    # ssh to the server → git pull → docker compose up -d
 ```
 
-## 連携対象デバイス（ネットワーク調査済み）
+`deploy/deploy.sh` reads `HA_SERVER`, `HA_REMOTE_DIR` and (optionally) `COMPOSE_CMD` from
+`.env`, then runs `git pull --ff-only && docker compose pull && docker compose up -d` over
+SSH. Runtime state (`config/.storage/`, logs, the database, `.env`, `secrets.yaml`) is **not**
+synced through git — it persists on the server and is gitignored.
 
-| 機器 | IP | HA統合 |
-|---|---|---|
-| Nature Remo | 192.168.1.6 | Nature Remo（公式組込） |
-| Tuyaスマートプラグ ×3 | .8 / .12 / .20 | Tuya（公式組込） |
-| iRobot ルンバ ×2 | .15 / .25 | iRobot（公式組込） |
-| Google端末（Chromecast/Nest） | .37 | Google Cast（公式組込） |
-| Brotherプリンタ | .5 | brother_printer（HACS、後付け候補） |
-| Panasonicテレビ | .10 | Nature Remo IR経由（VIERA直接統合は要HTTP/UPnPテスト） |
-| Espressif系不明機器 | .42 | Phase 1作業中に物理確認 |
-| Tuyaスマートプラグ残2台用途 | - | SmartLife側の登録名で判別 |
+## Layout
 
-## ネットワーク構成
-
-- HAは `network_mode: host` で動く（mDNS/Tuya UDPブロードキャスト探索のため）
-- HAアクセスは `http://192.168.1.2:8123`（**ローカルネットワーク内のみ**、Caddyリバースプロキシ配下には置かない・外部公開しない）
-
-## コンテナランタイム（サーバー実情）
-
-サーバー (192.168.1.2) は **Ubuntu Server LTS + Docker Engine rootful**（apt 公式 docker-ce）。既存の Caddy / Nextcloud / OpenClaw MCP / その他コンテナが稼働している。HA もホームディレクトリ (`/home/kite/homeassistant/`) に置いて `docker compose` で起動する。
-
-- `network_mode: host` は Docker rootful でも動く（Nature Remo mDNS / Tuya UDP / SSDP 全部受信できる）
-- `privileged: true` と `/run/dbus` mount は利用可能だが、現状の HA 用途では不要。USB/Bluetooth が必要になったら有効化を検討
-- Ubuntu は **AppArmor** 環境のため bind mount への `:Z` 付与は不要（SELinux 固有機能）
-- `restart: unless-stopped` は Docker daemon 起動時に自動再起動する（OS 再起動時も docker.service 経由で自動起動）
-
-## デプロイ
-
-```bash
-bash deploy/deploy.sh
+```
+docker-compose.yml          Home Assistant container definition (network_mode: host)
+config/configuration.yaml   Minimal seed config (committed)
+config/.storage/, secrets.yaml, logs   Runtime state Home Assistant writes (gitignored)
+deploy/deploy.sh            git pull + docker compose up -d on the server over SSH
+.env / .env.example         Deploy-target host info (.env is gitignored)
 ```
 
-`git pull` で構成を同期し、リモートで `${COMPOSE_CMD} pull && up -d` を実行する。
-`.storage/`・ログ・DB・`.env`・`secrets.yaml` は同期対象外（リモート側で永続化）。
+## Server notes
 
-## サーバーリプレイス（2026-04-28 移行完了）
+- The server is **Ubuntu Server LTS + Docker Engine (rootful)** from the official `docker-ce` apt
+  packages, with the `docker compose` plugin.
+- `network_mode: host` works under rootful Docker and is required for mDNS / Tuya UDP / SSDP discovery.
+- `privileged: true` and a `/run/dbus` mount are available but unused — enable them only if you
+  later need USB/Bluetooth pass-through (e.g. a Wyoming voice satellite).
+- On Ubuntu's AppArmor the SELinux-only `:Z` bind-mount flag is unnecessary.
+- `restart: unless-stopped` brings the container back automatically when the Docker daemon starts,
+  including across OS reboots.
 
-192.168.1.2 は Bazzite + rootless Podman → **Ubuntu Server LTS + Docker Engine rootful** へ移行完了（2026-04-28）。サーバー固有値は `.env` で上書き可能（`HA_SERVER` / `HA_REMOTE_DIR` / `COMPOSE_CMD`）。
+## Related project
 
-`docker-compose.yml` 本体に手を入れる必要があるのは USB/Bluetooth pass-through で privileged を有効化する時くらい。
+- **OpenClaw** — the AI assistant ("Bell"). It calls this Home Assistant through the
+  `home_control` MCP tool to operate the home.
 
-## 関連プロジェクト
+## License
 
-- [OpenClaw](../OpenClaw/) — ベル本体（AI秘書）。家電操作の道具 `home_control` を当HAに対して呼ぶ
+MIT — see [LICENSE](LICENSE).
